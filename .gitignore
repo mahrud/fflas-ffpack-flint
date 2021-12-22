@@ -1,0 +1,10 @@
+build
+# preprocessor output
+test.cc
+# compiler output
+test.ii
+test.s
+test.bc
+test.o
+# linked output
+test

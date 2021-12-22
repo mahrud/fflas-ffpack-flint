@@ -1,0 +1,9 @@
+{
+    "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+    "files.associations": {
+        "iostream": "cpp",
+        "gmp++_int.C": "cpp",
+        "gmp++_int_mul.c": "cpp",
+        "gmp++_int_mod.C": "cpp"
+    }
+}
