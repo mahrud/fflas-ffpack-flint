@@ -156,16 +156,17 @@ namespace ARing
         //     return "ModularFlint<" + TypeString<Element>::get() +  ">";
         // }
 
-        // TODO
-        // // ----- Random generators
-        // typedef ModularRandIter<Self_t> RandIter;
-        // typedef GeneralRingNonZeroRandIter<Self_t> NonZeroRandIter;
-        // template< class Random > Element& random(Random& g, Element& r) const
-        // { return init(r, g()); }
-        // template< class Random > Element& nonzerorandom(Random& g, Element& a) const
-        // { while (isZero(init(a, g())))
-        //     ;
-        //     return a; }
+        // Note: Givaro::ModularRandIter is declared in givaro/src/kernel/system/givranditer.h
+        // but as it is entirely inlined, it doesn't require linking with Givaro.
+        // ----- Random generators
+        typedef Givaro::ModularRandIter<Self_t> RandIter;
+        typedef Givaro::GeneralRingNonZeroRandIter<Self_t> NonZeroRandIter;
+        template< class Random > Element& random(Random& g, Element& r) const
+        { return init(r, g()); }
+        template< class Random > Element& nonzerorandom(Random& g, Element& a) const
+        { while (isZero(init(a, g())))
+                ;
+            return a; }
 
         // --- IO methods
         std::ostream& write(std::ostream& s) const;
