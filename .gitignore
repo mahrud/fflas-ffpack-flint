@@ -8,3 +8,4 @@ test.bc
 test.o
 # linked output
 test
+bench/bench-*
