@@ -1,3 +1,4 @@
+/* -*- mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 // ==========================================================================
 // Copyright(c)'2021 by Mahrud Sayrafi
 // This file is NOT a part of Givaro, but the majority of it is based
@@ -10,16 +11,16 @@
 
 #include <cmath> // fmod
 
-#define NORMALISE(x)				\
-{						\
-    if (x < _mhalfp) x += _p;	\
-    else if (x > _halfp) x -= _p;	\
-}
+#define NORMALISE(x)                            \
+    {                                           \
+        if (x < _mhalfp) x += _p;               \
+        else if (x > _halfp) x -= _p;           \
+    }
 
-#define NORMALISE_HI(x)				\
-{						\
-    if (x > _halfp) x -= _p;		\
-}
+#define NORMALISE_HI(x)                         \
+    {                                           \
+        if (x > _halfp) x -= _p;                \
+    }
 
 // TODO: remove this clause
 namespace Givaro {
@@ -39,22 +40,22 @@ namespace Givaro {
 namespace FFLAS {
     namespace Protected {
         template<>
-        inline int WinogradThreshold (const M2::ModularFlint<fmpz> & F) {return __FFLASFFPACK_WINOTHRESHOLD_BAL;}
+        inline int WinogradThreshold (const ARing::ModularFlint<fmpz> & F) {return __FFLASFFPACK_WINOTHRESHOLD_BAL;}
     } // namespace Protected
 
     template <typename Element>
-    struct ModeTraits<M2::ModularFlint<Element>> {typedef typename ModeCategories::DelayedTag value;};
+    struct ModeTraits<ARing::ModularFlint<Element>> {typedef typename ModeCategories::DelayedTag value;};
 
     template <>
-    inline size_t bitsize(const M2::ModularFlint<fmpz>& F, size_t M, size_t N, const typename M2::ModularFlint<fmpz>::ConstElement_ptr A, size_t lda){
+    inline size_t bitsize(const ARing::ModularFlint<fmpz>& F, size_t M, size_t N, const typename ARing::ModularFlint<fmpz>::ConstElement_ptr A, size_t lda){
         fmpz max = FLINT_MAX(F.maxElement(), FLINT_ABS(F.minElement()));
-	return fmpz_bits(&max);
+        return fmpz_bits(&max);
     }
 
-    template <> struct ModeTraits<M2::ModularFlint<fmpz>> {typedef typename ModeCategories::ConvertTo<ElementCategories::MachineFloatTag> value;};
+    template <> struct ModeTraits<ARing::ModularFlint<fmpz>> {typedef typename ModeCategories::ConvertTo<ElementCategories::MachineFloatTag> value;};
 } // namespace FFLAS
 
-namespace M2
+namespace ARing
 {
 
     //----- Classic arithmetic
@@ -100,7 +101,7 @@ namespace M2
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::inv(Element& r, const Element& a) const
     {
-	fmpz_invmod(&r, &a, &_p);
+        fmpz_invmod(&r, &a, &_p);
         NORMALISE(r);
         return r;
     }
@@ -108,7 +109,7 @@ namespace M2
     inline bool ModularFlint<fmpz>::isUnit(const Element& a) const
     {
         fmpz_t d;
-	fmpz_init(d);
+        fmpz_init(d);
         fmpz_gcd(d, &a, &_p);
         return fmpz_is_pm1(d);
     }
@@ -290,11 +291,10 @@ namespace M2
         return is;
     }
 
-}
+} // namespace ARing
 
 #undef NORMALISE
 #undef NORMALISE_HI
 
-#endif
-/* -*- mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+#endif // __modular_flint_INL
 // vim:sts=4:sw=4:ts=4:et:sr:cino=>s,f0,{0,g0,(0,\:0,t0,+0,=s

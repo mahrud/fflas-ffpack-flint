@@ -5,13 +5,11 @@
 // This file is distributed under the GPLv2 license.
 // ==========================================================================
 
-#include <iostream>
-
+#include <fflas-ffpack/fflas-ffpack.h>
 #include <flint/flint.h>
 #include <flint/fmpz.h>
 #include <flint/fq_nmod.h>
-
-#include <fflas-ffpack/fflas-ffpack.h>
+#include <iostream>
 
 #include "modular-flint.h"
 
@@ -34,7 +32,7 @@ int main(int argc, char** argv)
     // Creating the finite field Z/pZ
     fmpz p;
     fmpz_init_set_ui(&p, p0);
-    M2::ModularFlint<fmpz> F(p);
+    ARing::ModularFlint<fmpz> F(p);
 
     // Reading the matrix from a file
     fmpz* A;

@@ -1,3 +1,4 @@
+/* -*- mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 // ==========================================================================
 // Copyright(c)'2021 by Mahrud Sayrafi
 // This file is NOT a part of Givaro, but the majority of it is based
@@ -8,20 +9,20 @@
 #ifndef __modular_flint_H
 #define __modular_flint_H
 
+#include <fflas-ffpack/fflas-ffpack.h>
 #include <flint/flint.h>
 #include <flint/fmpz.h>
 #include <flint/fq_nmod.h>
-
 #include <iostream>
 
-namespace M2
+namespace ARing
 {
     template<class TAG> class ModularFlint;
 
     template <>
     class ModularFlint<fmpz>
     {
-    public:
+      public:
 
         // ----- Exported types
         using Self_t = ModularFlint<fmpz>;
@@ -43,22 +44,22 @@ namespace M2
 
         // ----- Constructors
         ModularFlint()
-        : _p(zero), _halfp(zero), _mhalfp(zero), _dinvp(0.0)
+            : _p(zero), _halfp(zero), _mhalfp(zero), _dinvp(0.0)
         {}
 
         ModularFlint(Element p)
-	: _p(p), _dinvp(1. / fmpz_get_d(&p))
+            : _p(p), _dinvp(1. / fmpz_get_d(&p))
         {
-	    assert(fmpz_get_ui(&_p) >= minCardinality());
-	    assert(fmpz_get_ui(&_p) <= maxCardinality());
-	    fmpz_tdiv_q_2exp(&_halfp, &_p, 1);
-	    fmpz_sub(&_mhalfp, &_halfp, &_p);
-	    fmpz_sub_ui(&_mhalfp, &_mhalfp, 1);
-	    fq_nmod_ctx_init(_ctx, &_p, 1, "a");
+            assert(fmpz_get_ui(&_p) >= minCardinality());
+            assert(fmpz_get_ui(&_p) <= maxCardinality());
+            fmpz_tdiv_q_2exp(&_halfp, &_p, 1);
+            fmpz_sub(&_mhalfp, &_halfp, &_p);
+            fmpz_sub_ui(&_mhalfp, &_mhalfp, 1);
+            fq_nmod_ctx_init(_ctx, &_p, 1, "a");
         }
 
         ModularFlint(const Self_t& F)
-        : _p(F._p), _halfp(F._halfp), _mhalfp(F._mhalfp), _dinvp(F._dinvp)
+            : _p(F._p), _halfp(F._halfp), _mhalfp(F._mhalfp), _dinvp(F._dinvp)
         {}
 
         // ----- Accessors
@@ -171,18 +172,16 @@ namespace M2
         std::istream& read (std::istream& s, Element& a) const;
         std::ostream& write(std::ostream& s, const Element& a) const;
 
-    protected:
+      protected:
 
         Residu_t _p;
         Element _halfp;
         Element _mhalfp;
         double _dinvp;
     };
-}
+} // namespace ARing
 
 #include "modular-flint.inl"
 
 #endif // __modular_flint_H
-
-/* -*- mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 // vim:sts=4:sw=4:ts=4:et:sr:cino=>s,f0,{0,g0,(0,\:0,t0,+0,=s
