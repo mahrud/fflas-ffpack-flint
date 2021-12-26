@@ -1,53 +1,14 @@
+/* -*- mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 // ==========================================================================
 // This file is based on fflas_ffpack/benchmarks/benchmark-pluq.C.
+// Modified and redistributed under LGPLv2.1+
 // ==========================================================================
-/* Copyright (c) FFLAS-FFPACK
- * Written by Ziad Sultan <ziad.sultan@imag.fr>
- * ========LICENCE========
- * This file is part of the library FFLAS-FFPACK.
- *
- * FFLAS-FFPACK is free software: you can redistribute it and/or modify
- * it under the terms of the  GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
- * ========LICENCE========
- */
-
-//#include "goto-def.h"
 
 //#define __FFLASFFPACK_USE_OPENMP
 //#define __FFLASFFPACK_USE_TBB
 
-//#define __FFLASFFPACK_USE_DATAFLOW
-//#define  __FFLASFFPACK_FORCE_SEQ
-//#define WINOPAR_KERNEL
-//#define CLASSIC_SEQ
-// #define PROFILE_PLUQ
-// #define MONOTONIC_CYCLES
-// #define MONOTONIC_MOREPIVOTS
-// #define MONOTONIC_FEWPIVOTS
-
-#ifdef MONOTONIC_CYCLES
-#define MONOTONIC_APPLYP
-#endif
-#ifdef MONOTONIC_MOREPIVOTS
-#define MONOTONIC_APPLYP
-#endif
-#ifdef MONOTONIC_FEWPIVOTS
-#define MONOTONIC_APPLYP
-#endif
-
-// declare that the call to openblas_set_numthread will be made here, hence don't do it
-// everywhere in the call stack
+// declare that the call to openblas_set_numthread will be made here,
+// hence don't do it everywhere in the call stack
 #define __FFLASFFPACK_OPENBLAS_NT_ALREADY_SET 1
 
 #include "fflas-ffpack/fflas-ffpack-config.h"
@@ -55,7 +16,6 @@
 #include <givaro/modular.h>
 #include <givaro/modular-integer.h>
 #include <givaro/givranditer.h>
-#include <iostream>
 
 #include "fflas-ffpack/config-blas.h"
 #include "fflas-ffpack/fflas/fflas.h"
@@ -69,11 +29,10 @@
 #include <flint/fmpz_mat.h>
 #include <flint/fq_nmod.h>
 #include <flint/fq_nmod_mat.h>
+
 #include "../modular-flint.h"
 
-#ifdef __FFLASFFPACK_USE_KAAPI
-#include "libkomp.h"
-#endif
+#include <iostream>
 
 using namespace std;
 
@@ -103,11 +62,11 @@ void Rec_Initialize(Field &F, Field::Element * C, size_t m, size_t n, size_t ldc
         typename Field::Element * C4 = C3 + N2;
 
         SYNCH_GROUP(
-                    TASK(MODE(CONSTREFERENCE(F)), Rec_Initialize(F,C,M2,N2, ldc););
-                    TASK(MODE(CONSTREFERENCE(F)), Rec_Initialize(F,C2,M2,n-N2, ldc););
-                    TASK(MODE(CONSTREFERENCE(F)), Rec_Initialize(F,C3,m-M2,N2, ldc););
-                    TASK(MODE(CONSTREFERENCE(F)), Rec_Initialize(F,C4,m-M2,n-N2, ldc););
-                   );
+            TASK(MODE(CONSTREFERENCE(F)), Rec_Initialize(F,C,M2,N2, ldc););
+            TASK(MODE(CONSTREFERENCE(F)), Rec_Initialize(F,C2,M2,n-N2, ldc););
+            TASK(MODE(CONSTREFERENCE(F)), Rec_Initialize(F,C3,m-M2,N2, ldc););
+            TASK(MODE(CONSTREFERENCE(F)), Rec_Initialize(F,C4,m-M2,n-N2, ldc););
+            );
     }
 }
 
@@ -124,57 +83,42 @@ int main(int argc, char** argv) {
     int n = 2000 ;
     int r = 2000 ;
     int v = 0;
-    int t=MAX_THREADS;
-    int NBK = -1;
-    bool par=false;
-    bool grp =true;
     Argument as[] = {
         { 'f', "-f F", "Use Flint for computing rank.", TYPE_BOOL , &flint },
         { 'q', "-q Q", "Set the field characteristic (-1 for random).",         TYPE_INT , &q },
         { 'm', "-m M", "Set the row dimension of A.",      TYPE_INT , &m },
         { 'n', "-n N", "Set the col dimension of A.",      TYPE_INT , &n },
         { 'r', "-r R", "Set the rank of matrix A.",            TYPE_INT , &r },
-        { 'g', "-g yes/no", "Generic rank profile (yes) or random rank profile (no).", TYPE_BOOL , &grp },
         { 'i', "-i I", "Set number of repetitions.",            TYPE_INT , &iter },
         { 'v', "-v V", "Set 1 if need verification of result else 0.",            TYPE_INT , &v },
-        { 't', "-t T", "number of virtual threads to drive the partition.", TYPE_INT , &t },
-        { 'b', "-b B", "number of numa blocks per dimension for the numa placement", TYPE_INT , &NBK },
-        { 'p', "-p P", "whether to run or not the parallel PLUQ", TYPE_BOOL , &par },
         END_OF_ARGUMENTS
     };
     FFLAS::parseArguments(argc,argv,as);
+    if (r > std::min(m, n)) r = std::min(m, n);
+
+    // FIXME: why does this ometimes segfault?
     std::cout << "Defining F(q) ... ";
     Field F(q);
     std::cout << "done." << std::endl;
-    if (r > std::min(m,n)){
-        std::cerr<<"Warning: rank can not be greater than min (m,n). It has been forced to min (m,n)"<<std::endl;
-        r=std::min(m,n);
-    }
-    if (!par) { t=1;NBK=1;}
-    if (NBK==-1) NBK = t;
 
-    Field::Element_ptr A,  Acop;
+    size_t R;
+    Field::Element_ptr A, Acop;
     A = FFLAS::fflas_new(F,m,n);
+
+    fmpz_t q0;
+    fmpz_set_ui(q0, q);
+    fq_nmod_ctx_t ctx;
+    fq_nmod_ctx_init(ctx, q0, 1, "a");
+    fq_nmod_mat_t Amat, Amatcop;
+    fq_nmod_mat_init(Amatcop, m, n, ctx);
 
     PAR_BLOCK{
         Rec_Initialize(F, A, m, n, n);
-        //              FFLAS::pfzero(F,m,n,A,m/NBK);
-        if (grp){
-            size_t * cols = FFLAS::fflas_new<size_t>(n);
-            size_t * rows = FFLAS::fflas_new<size_t>(m);
-            for (int i=0; i<n; ++i)
-                cols[i] = i;
-            for (int i=0; i<m; ++i)
-                rows[i] = i;
-            FFPACK::RandomMatrixWithRankandRPM (F, m, n ,r, A, n, rows, cols);
-            FFLAS::fflas_delete(cols);
-            FFLAS::fflas_delete(rows);
-        } else
-            FFPACK::RandomMatrixWithRankandRandomRPM (F, m, n ,r, A, n);
+        FFPACK::RandomMatrixWithRankandRandomRPM (F, m, n, r, A, n);
     }
-    size_t R;
+
     FFLAS::Timer chrono;
-    double *time=new double[iter];
+    double *time = new double[iter];
 
     enum FFLAS::FFLAS_DIAG diag = FFLAS::FflasNonUnit;
     size_t maxP, maxQ;
@@ -184,42 +128,36 @@ int main(int argc, char** argv) {
     size_t *P = FFLAS::fflas_new<size_t>(maxP);
     size_t *Q = FFLAS::fflas_new<size_t>(maxQ);
 
-    fmpz_t q0;
-    fmpz_set_ui(q0, q);
-    fq_nmod_ctx_t ctx;
-    fq_nmod_ctx_init(ctx, q0, 1, "a");
-    fq_nmod_mat_t Amat, Amatcop;
-    fq_nmod_mat_init(Amatcop, m, n, ctx);
     if (flint) {
-	    for(int i=0;i<m;++i)
-	    for(int j=0;j<n;++j)
-	    {
-		    fq_nmod_struct* a = fq_nmod_mat_entry(Amatcop, i, j);
 #ifdef USE_FLINT_RANK
-		    fq_nmod_set_fmpz(a, A + i*n + j, ctx);
-#endif
-	    }
+	    for(int i=0;i<m;++i)
+        for(int j=0;j<n;++j)
+        {
+            fq_nmod_struct* a = fq_nmod_mat_entry(Amatcop, i, j);
+            fq_nmod_set_fmpz(a, A + i*n + j, ctx);
+        }
 	    fq_nmod_mat_init_set(Amat, Amatcop, ctx);
 #if 0
 	    FFLAS::WriteMatrix(std::cout << "A = " << std::endl, F, m, n, A, m, FFLAS::FflasAuto) << std::endl;
 	    fq_nmod_mat_print_pretty(Amatcop, ctx);
 	    std::cout << std::endl;
 #endif
+#endif
     } else {
-    Acop = FFLAS::fflas_new(F,m,n);
-    FFLAS::ParSeqHelper::Parallel<FFLAS::CuttingStrategy::Recursive,
-                                  FFLAS::StrategyParameter::Threads> parH;
-    PARFOR1D(i,(size_t)m,parH,
-             FFLAS::fassign(F, n, A + i*n, 1, Acop + i*n, 1);
-             // for (size_t j=0; j<(size_t)n; ++j)
-             //     Acop[i*n+j]= A[i*n+j];
+        Acop = FFLAS::fflas_new(F,m,n);
+        FFLAS::ParSeqHelper::Parallel<FFLAS::CuttingStrategy::Recursive,
+                                      FFLAS::StrategyParameter::Threads> parH;
+        PARFOR1D(i,(size_t)m,parH,
+                 FFLAS::fassign(F, n, A + i*n, 1, Acop + i*n, 1);
+                 // for (size_t j=0; j<(size_t)n; ++j)
+                 //     Acop[i*n+j]= A[i*n+j];
             );
     }
 
     for (size_t i=0;i<=iter;++i)
     {
-	if (flint) fq_nmod_mat_set(Amat, Amatcop, ctx);
-	else {
+        if (flint) fq_nmod_mat_set(Amat, Amatcop, ctx);
+        else {
         PARFOR1D(j,maxP,parH, P[j]=0; );
         PARFOR1D(j,maxQ,parH, Q[j]=0; );
         PARFOR1D(k,(size_t)m,parH,
@@ -227,32 +165,23 @@ int main(int argc, char** argv) {
                  // for (size_t j=0; j<(size_t)n; ++j)
                  //     F.assign( A[k*n+j] , Acop[k*n+j]) ;
                 );
-	}
+        }
 
         chrono.clear();
 
         if (i) chrono.start();
-        if (par){
-/*
-            PAR_BLOCK{
-                parH.set_numthreads(t);
-                R = FFPACK::PLUQ(F, diag, m, n, A, n, P, Q, parH);
-            }
-*/
-            R = FFPACK::pPLUQ(F, diag, m, n, A, n, P, Q);
-        }
-        else{
-            if (flint)
-                R = fq_nmod_mat_rank(Amat, ctx);
-//                R = FFPACK::LUdivine (F, diag, FFLAS::FflasNoTrans, m, n, A, n, P, Q);
-            else
-                R = FFPACK::PLUQ(F, diag, m, n, A, n, P, Q);
-        }
+        if (flint)
+            R = fq_nmod_mat_rank(Amat, ctx);
+        else
+            R = FFPACK::PLUQ(F, diag, m, n, A, n, P, Q);
+//          R = FFPACK::pPLUQ(F, diag, m, n, A, n, P, Q);
+//          R = FFPACK::LUdivine(F, diag, FFLAS::FflasNoTrans, m, n, A, n, P, Q);
         if (i) {chrono.stop(); time[i-1]=chrono.realtime();}
 
-//	std::cout << "rank = " << R << std::endl;
-	assert(R == r);
+//        std::cout << "rank = " << R << std::endl;
+        assert(R == r);
     }
+
     std::sort(time, time+iter);
     double mediantime = time[iter/2];
     delete[] time;
@@ -271,6 +200,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-
-/* -*- mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 // vim:sts=4:sw=4:ts=4:et:sr:cino=>s,f0,{0,g0,(0,\:0,t0,+0,=s

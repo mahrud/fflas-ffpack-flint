@@ -9,3 +9,5 @@ test.o
 # linked output
 test
 bench/bench-*
+# plots
+bench/plot-*
