@@ -63,9 +63,10 @@ namespace ARing
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::mul(Element& r, const Element& a, const Element& b) const
     {
-        Element q = static_cast<Element>(double(a) * double(b) * _dinvp);
-        r = static_cast<Element>(a * b - q * _p);
-        NORMALISE(r);
+        fmpz_mod_mul(&r, &a, &b, _ctx);
+        // Element q = static_cast<Element>(double(a) * double(b) * _dinvp);
+        // r = static_cast<Element>(a * b - q * _p);
+        // NORMALISE(r);
         return r;
     }
 
@@ -79,30 +80,33 @@ namespace ARing
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::add(Element& r, const Element& a, const Element& b) const
     {
-        r = a + b;
-        NORMALISE(r);
+        fmpz_mod_add(&r, &a, &b, _ctx);
+        // r = a + b;
+        // NORMALISE(r);
         return r;
     }
 
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::sub(Element& r, const Element& a, const Element& b) const
     {
-        r = a - b;
-        NORMALISE(r);
+        fmpz_mod_sub(&r, &a, &b, _ctx);
+        // r = a - b;
+        // NORMALISE(r);
         return r;
     }
 
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::neg(Element& r, const Element& a) const
     {
-        return r = -a;
+        fmpz_mod_neg(&r, &a, _ctx);
+        return r; // = -a;
     }
 
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::inv(Element& r, const Element& a) const
     {
-        fmpz_invmod(&r, &a, &_p);
-        NORMALISE(r);
+        fmpz_mod_inv(&r, &a, _ctx);
+        // NORMALISE(r);
         return r;
     }
 
@@ -223,16 +227,21 @@ namespace ARing
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::init(Element& x, const double y) const
     {
-        x = static_cast<Element>(fmod(y, double(_p)));
-        NORMALISE(x);
+        fmpz_init(&x);
+        fmpz_set_d(&x, y);
+        fmpz_mod(&x, &x, &_p);
+        // x = static_cast<Element>(fmod(y, double(_p)));
+        // NORMALISE(x);
         return x;
     }
 
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::init(Element& x, const int64_t y) const
     {
-        x = static_cast<Element>(y % _p);
-        NORMALISE_HI(x);
+        fmpz_init_set_si(&x, y);
+        fmpz_mod(&x, &x, &_p);
+        // x = static_cast<Element>(y % _p);
+        // NORMALISE_HI(x);
         return x;
     }
 
@@ -255,16 +264,18 @@ namespace ARing
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::reduce(Element& x, const Element& y) const
     {
-        x = y % _p;
-        NORMALISE(x);
+        fmpz_mod(&x, &y, &_p);
+        // x = y % _p;
+        // NORMALISE(x);
         return x;
     }
 
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::reduce(Element& x) const
     {
-        x %= _p;
-        NORMALISE(x);
+        fmpz_mod(&x, &x, &_p);
+        // x %= _p;
+        // NORMALISE(x);
         return x;
     }
 

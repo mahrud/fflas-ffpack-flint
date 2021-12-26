@@ -12,7 +12,7 @@
 #include <fflas-ffpack/fflas-ffpack.h>
 #include <flint/flint.h>
 #include <flint/fmpz.h>
-#include <flint/fq_nmod.h>
+#include <flint/fmpz_mod.h>
 #include <iostream>
 
 namespace ARing
@@ -30,7 +30,7 @@ namespace ARing
         using Element_ptr = Element*;
         using ConstElement = const Element;
         using ConstElement_ptr = const Element*;
-        using Residu_t = long; // FIXME
+        using Residu_t = fmpz;
         enum { size_rep = sizeof(Element) };
 
         // ----- Constantes
@@ -39,13 +39,14 @@ namespace ARing
         const Element mOne = -1;
 
         // ----- Flint
-        // TODO: use fq_nmod arithmetic more
-        fq_nmod_ctx_t _ctx;
+        fmpz_mod_ctx_t _ctx;
 
         // ----- Constructors
         ModularFlint()
             : _p(zero), _halfp(zero), _mhalfp(zero), _dinvp(0.0)
-        {}
+        {
+            fmpz_mod_ctx_init(_ctx, &_p);
+        }
 
         ModularFlint(Element p)
             : _p(p), _dinvp(1. / fmpz_get_d(&p))
@@ -55,12 +56,14 @@ namespace ARing
             fmpz_tdiv_q_2exp(&_halfp, &_p, 1);
             fmpz_sub(&_mhalfp, &_halfp, &_p);
             fmpz_sub_ui(&_mhalfp, &_mhalfp, 1);
-            fq_nmod_ctx_init(_ctx, &_p, 1, "a");
+            fmpz_mod_ctx_init(_ctx, &_p);
         }
 
         ModularFlint(const Self_t& F)
             : _p(F._p), _halfp(F._halfp), _mhalfp(F._mhalfp), _dinvp(F._dinvp)
-        {}
+        {
+            fmpz_mod_ctx_init(_ctx, &_p);
+        }
 
         // ----- Accessors
         inline Element minElement() const { return _mhalfp; }
