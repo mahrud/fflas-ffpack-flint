@@ -9,7 +9,8 @@
 
 // declare that the call to openblas_set_numthread will be made here,
 // hence don't do it everywhere in the call stack
-#define __FFLASFFPACK_OPENBLAS_NT_ALREADY_SET 1
+//#define __FFLASFFPACK_OPENBLAS_NT_ALREADY_SET 1
+//#define __FFLASFFPACK_OPENBLAS_NUM_THREADS 4
 
 #include "fflas-ffpack/fflas-ffpack-config.h"
 #include <givaro/gfq.h>
@@ -30,7 +31,9 @@
 #include <flint/fq_nmod.h>
 #include <flint/fq_nmod_mat.h>
 
+#ifdef USE_FLINT_RANK
 #include "../modular-flint.h"
+#endif
 
 #include <iostream>
 
@@ -39,13 +42,24 @@ using namespace std;
 #ifdef USE_FLINT_RANK
 typedef ARing::ModularFlint<fmpz> Field;
 #else
-//typedef Givaro::Modular<Givaro::Integer> Field; // crashes
+typedef Givaro::Modular<Givaro::Integer> Field;
 //typedef Givaro::ModularBalanced<double> Field;
-typedef Givaro::ModularBalanced<int64_t> Field;
+//typedef Givaro::ModularBalanced<int64_t> Field;
 //typedef Givaro::ModularBalanced<float> Field;
-//typedef Givaro::GFqDom<int32_t> Field; // doesn't compile
-//typedef Givaro::ZRing<double> Field;
-//typedef Givaro::UnparametricZRing<double> Field;
+//typedef Givaro::Modular<double> Field; // used in aring-zzp-ffpack
+//typedef Givaro::GFqDom<int64_t> Field; // used in aring-gf-givaro
+// needed for getting GFqDom<int64_t> to work
+namespace FFLAS {
+    namespace Protected {
+        template<>
+        inline int WinogradThreshold (const Givaro::GFqDom<int64_t> & F) {return __FFLASFFPACK_WINOTHRESHOLD_BAL;}
+    } // namespace Protected
+
+    template <typename Element>
+    struct ModeTraits<Givaro::GFqDom<Element>> {typedef typename ModeCategories::DelayedTag value;};
+
+    template <> struct ModeTraits<Givaro::GFqDom<int64_t>> {typedef typename ModeCategories::ConvertTo<ElementCategories::MachineFloatTag> value;};
+} // namespace FFLAS
 #endif
 
 void Rec_Initialize(Field &F, Field::Element * C, size_t m, size_t n, size_t ldc)
@@ -127,6 +141,8 @@ int main(int argc, char** argv) {
 
     size_t *P = FFLAS::fflas_new<size_t>(maxP);
     size_t *Q = FFLAS::fflas_new<size_t>(maxQ);
+    FFLAS::ParSeqHelper::Parallel<FFLAS::CuttingStrategy::Recursive,
+                                  FFLAS::StrategyParameter::Threads> parH;
 
     if (flint) {
 #ifdef USE_FLINT_RANK
@@ -145,8 +161,6 @@ int main(int argc, char** argv) {
 #endif
     } else {
         Acop = FFLAS::fflas_new(F,m,n);
-        FFLAS::ParSeqHelper::Parallel<FFLAS::CuttingStrategy::Recursive,
-                                      FFLAS::StrategyParameter::Threads> parH;
         PARFOR1D(i,(size_t)m,parH,
                  FFLAS::fassign(F, n, A + i*n, 1, Acop + i*n, 1);
                  // for (size_t j=0; j<(size_t)n; ++j)
