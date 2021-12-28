@@ -10,6 +10,7 @@
 #define __modular_flint_INL
 
 #include <cmath> // fmod
+#include <flint/fmpz_mat.h>
 
 #define NORMALISE(x)                            \
     {                                           \
@@ -38,21 +39,90 @@ namespace Givaro {
 } // namespace Givaro
 
 namespace FFLAS {
-    namespace Protected {
-        template<>
-        inline int WinogradThreshold (const ARing::ModularFlint<fmpz> & F) {return __FFLASFFPACK_WINOTHRESHOLD_BAL;}
-    } // namespace Protected
+    template<>
+    inline int Protected::WinogradThreshold (const ARing::ModularFlint<fmpz> & F) { return 1000; } // TODO: figure this out
 
-    template <typename Element>
-    struct ModeTraits<ARing::ModularFlint<Element>> {typedef typename ModeCategories::DelayedTag value;};
+    template<>
+    struct ElementTraits<ARing::ModularFlint<fmpz>> { typedef ElementCategories::ArbitraryPrecIntTag value; };
 
-    template <>
-    inline size_t bitsize(const ARing::ModularFlint<fmpz>& F, size_t M, size_t N, const typename ARing::ModularFlint<fmpz>::ConstElement_ptr A, size_t lda){
+    // ConvertTo<ElementCategories::ArbitraryPrecIntTag>
+    template<>
+    struct ModeTraits<ARing::ModularFlint<fmpz>> { typedef ModeCategories::DefaultBoundedTag value; };
+
+    // fgemm for ModularFlint<fmpz> with Winograd Helper: C = alpha * A * B + beta * C
+    inline ARing::ModularFlint<fmpz>::Element_ptr fgemm(
+        const ARing::ModularFlint<fmpz> &F,
+        const FFLAS_TRANSPOSE ta, const FFLAS_TRANSPOSE tb,
+        const size_t m, const size_t n, const size_t k,
+        ARing::ModularFlint<fmpz>::ConstElement alpha,
+        ARing::ModularFlint<fmpz>::ConstElement_ptr Ad, const size_t lda,
+        ARing::ModularFlint<fmpz>::ConstElement_ptr Bd, const size_t ldb,
+        ARing::ModularFlint<fmpz>::ConstElement beta,
+        ARing::ModularFlint<fmpz>::Element_ptr Cd, const size_t ldc,
+        MMHelper<ARing::ModularFlint<fmpz>, MMHelperAlgo::Classic, ModeCategories::DefaultTag, ParSeqHelper::Sequential> & H)
+    {
+        fmpz_mat_t Af, Bf, Cf, Rf;
+        fmpz_mat_init(Af, m, k);
+        if (ta == FflasNoTrans)
+            for (size_t i = 0; i < m; i++)
+                Af->rows[i] = (fmpz *)Ad + i * lda;
+        else
+            for (size_t i = 0; i < m; i++)
+            for (size_t j = 0; j < k; j++)
+                fmpz_set(&Af->rows[i][j], (fmpz *)Ad + j * lda + i);
+        fmpz_mat_init(Bf, k, n);
+        if (tb == FflasNoTrans)
+            for (size_t i = 0; i < k; i++)
+                Bf->rows[i] = (fmpz *)Bd + i * ldb;
+        else
+            for (size_t i = 0; i < k; i++)
+            for (size_t j = 0; j < n; j++)
+                fmpz_set(&Bf->rows[i][j], (fmpz *)Bd + j * ldb + i);
+        fmpz_mat_init(Cf, m, n);
+        for (size_t i = 0; i < m; i++)
+            Cf->rows[i] = (fmpz *)Cd + i * ldc;
+        // compute the product over Z
+        fmpz_mat_init(Rf, m, n);
+        fmpz_mat_mul(Rf, Af, Bf);
+        // apply alpha and beta
+        fmpz* tmp;
+        for (size_t i = 0; i < m; i++)
+        for (size_t j = 0; j < n; j++)
+        {
+            tmp = (fmpz *)Cd + i * ldc + j;
+            fmpz_fmma(tmp, &alpha, &Rf->rows[i][j], &beta, tmp);
+        }
+        // MMHelper<RnsDomain, MMHelperAlgo::Classic> H2(Zrns, H.recLevel,H.parseq);
+        // fgemm(Zrns,ta,tb,m,n,k,alpha,Ad,lda,Bd,ldb,beta,Cd,ldc,H2);
+        // reduce the product mod p
+        freduce (F, m, n, Cd, ldc);
+        return Cd;
+    }
+
+    // fgemm for ModularFlint<fmpz>: Y = alpha * A * X + beta * Y
+    inline ARing::ModularFlint<fmpz>::Element_ptr fgemv(
+        const ARing::ModularFlint<fmpz> &F,
+        const FFLAS_TRANSPOSE ta,
+        const size_t m, const size_t n,
+        ARing::ModularFlint<fmpz>::ConstElement alpha,
+        ARing::ModularFlint<fmpz>::ConstElement_ptr A, const size_t lda,
+        ARing::ModularFlint<fmpz>::ConstElement_ptr X, const size_t ldx,
+        ARing::ModularFlint<fmpz>::ConstElement beta,
+        ARing::ModularFlint<fmpz>::Element_ptr Y, const size_t ldy,
+        MMHelper<ARing::ModularFlint<fmpz>, MMHelperAlgo::Classic> &H)
+    {
+        MMHelper<ARing::ModularFlint<fmpz>, MMHelperAlgo::Winograd> H2(H);
+        fgemm(F,ta,FflasNoTrans,(ta==FflasNoTrans)?m:n,1,(ta==FflasNoTrans)?n:m,alpha,A,lda,X,ldx,beta,Y,ldy,H2);
+        return Y;
+    }
+
+    inline size_t bitsize(
+        const ARing::ModularFlint<fmpz>& F,
+        const size_t M, const size_t N,
+        ARing::ModularFlint<fmpz>::ConstElement_ptr A, size_t lda) {
         fmpz max = FLINT_MAX(F.maxElement(), FLINT_ABS(F.minElement()));
         return fmpz_bits(&max);
     }
-
-    template <> struct ModeTraits<ARing::ModularFlint<fmpz>> {typedef typename ModeCategories::ConvertTo<ElementCategories::MachineFloatTag> value;};
 } // namespace FFLAS
 
 namespace ARing
@@ -248,15 +318,19 @@ namespace ARing
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::init(Element& x, const uint64_t y) const
     {
-        x = static_cast<Element>(y % _p);
-        NORMALISE_HI(x);
+        fmpz_init_set_ui(&x, y);
+        fmpz_mod(&x, &x, &_p);
+        // x = static_cast<Element>(y % _p);
+        // NORMALISE_HI(x);
         return x;
     }
 
     inline ModularFlint<fmpz>::Element&
     ModularFlint<fmpz>::assign(Element& x, const Element& y) const
     {
-        return x = y;
+        fmpz_init_set(&x, &y);
+        // fmpz_mod(&x, &x, &_p);
+        return x;
     }
 
     //----- Reduce

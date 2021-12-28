@@ -21,6 +21,7 @@ namespace ARing
 
     template <>
     class ModularFlint<fmpz>
+        // : public Givaro::Modular_implem<fmpz, fmpz, fmpz>
     {
       public:
 
@@ -30,6 +31,7 @@ namespace ARing
         using Element_ptr = Element*;
         using ConstElement = const Element;
         using ConstElement_ptr = const Element*;
+        using Context = fmpz_mod_ctx_t;
         using Residu_t = fmpz;
         enum { size_rep = sizeof(Element) };
 
@@ -39,7 +41,7 @@ namespace ARing
         const Element mOne = -1;
 
         // ----- Flint
-        fmpz_mod_ctx_t _ctx;
+        Context _ctx; // TODO: change to ctx, since it's not private
 
         // ----- Constructors
         ModularFlint()
@@ -59,6 +61,8 @@ namespace ARing
             fmpz_mod_ctx_init(_ctx, &_p);
         }
 
+        // ModularFlint(Element_ptr p) : *this(ModularFlint(*p)) {};
+
         ModularFlint(const Self_t& F)
             : _p(F._p), _halfp(F._halfp), _mhalfp(F._mhalfp), _dinvp(F._dinvp)
         {
@@ -77,9 +81,8 @@ namespace ARing
         template<class T> inline T& characteristic(T& p) const { return p = _p; }
         template<class T> inline T& cardinality(T& p) const { return p = _p; }
 
-        // TODO: maxCardinality of Flint is much higher
-        static inline Residu_t maxCardinality() { return 6074000999ull; } // p=floor(2^32.5) s.t. a*b+c fits in int64_t, with abs(a,b,c) <= (p-1)/2
-        static inline Residu_t minCardinality() { return 3; }
+        static inline Residu_t maxCardinality() { return -1; }
+        static inline Residu_t minCardinality() { return 2; }
 
         // ----- Checkers
         inline bool isZero(const Element& a) const { return a == zero; }

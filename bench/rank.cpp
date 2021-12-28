@@ -4,6 +4,16 @@
 // Modified and redistributed under LGPLv2.1+
 // ==========================================================================
 
+#define CHAR 189812507 // 131071
+#define DIM 100
+
+#define MERSENNE(Q, P)                          \
+    {                                           \
+        fmpz_init_set_ui(Q, 2);                 \
+        fmpz_pow_ui(Q, Q, P);                   \
+        fmpz_sub_ui(Q, Q, 1);                   \
+    }
+
 //#define __FFLASFFPACK_USE_OPENMP
 //#define __FFLASFFPACK_USE_TBB
 
@@ -28,8 +38,8 @@
 #include <flint/flint.h>
 #include <flint/fmpz.h>
 #include <flint/fmpz_mat.h>
-#include <flint/fq_nmod.h>
-#include <flint/fq_nmod_mat.h>
+#include <flint/fq.h>
+#include <flint/fq_mat.h>
 
 #ifdef USE_FLINT_RANK
 #include "../modular-flint.h"
@@ -92,10 +102,10 @@ int main(int argc, char** argv) {
 
     size_t iter = 3 ;
     bool flint = false;
-    int q = 131071 ;
-    int m = 2000 ;
-    int n = 2000 ;
-    int r = 2000 ;
+    int q = CHAR;
+    int m = DIM;
+    int n = DIM;
+    int r = DIM;
     int v = 0;
     Argument as[] = {
         { 'f', "-f F", "Use Flint for computing rank.", TYPE_BOOL , &flint },
@@ -110,21 +120,25 @@ int main(int argc, char** argv) {
     FFLAS::parseArguments(argc,argv,as);
     if (r > std::min(m, n)) r = std::min(m, n);
 
+    q = 2; // 2, 3, 5, 7, 13, 17, 19, 31, 61, 89, 107, 127, ...
+    fmpz_t q0;
+    MERSENNE(q0, q);
+    // fmpz_init_set_ui(q0, q);
+
     // FIXME: why does this ometimes segfault?
-    std::cout << "Defining F(q) ... ";
-    Field F(q);
+    std::cout << "Defining F("; fmpz_print(q0); std::cout << ") ... ";
+    Field F(*q0);
     std::cout << "done." << std::endl;
 
     size_t R;
     Field::Element_ptr A, Acop;
     A = FFLAS::fflas_new(F,m,n);
+    Acop = FFLAS::fflas_new(F,m,n);
 
-    fmpz_t q0;
-    fmpz_set_ui(q0, q);
-    fq_nmod_ctx_t ctx;
-    fq_nmod_ctx_init(ctx, q0, 1, "a");
-    fq_nmod_mat_t Amat, Amatcop;
-    fq_nmod_mat_init(Amatcop, m, n, ctx);
+    fq_ctx_t ctx;
+    fq_ctx_init(ctx, q0, 1, "a");
+    fq_mat_t Amat, Amatcop;
+    fq_mat_init(Amatcop, m, n, ctx);
 
     PAR_BLOCK{
         Rec_Initialize(F, A, m, n, n);
@@ -149,28 +163,21 @@ int main(int argc, char** argv) {
 	    for(int i=0;i<m;++i)
         for(int j=0;j<n;++j)
         {
-            fq_nmod_struct* a = fq_nmod_mat_entry(Amatcop, i, j);
-            fq_nmod_set_fmpz(a, A + i*n + j, ctx);
+            fq_struct* a = fq_mat_entry(Amatcop, i, j);
+            fq_set_fmpz(a, A + i*n + j, ctx);
         }
-	    fq_nmod_mat_init_set(Amat, Amatcop, ctx);
+	    fq_mat_init_set(Amat, Amatcop, ctx);
 #if 0
 	    FFLAS::WriteMatrix(std::cout << "A = " << std::endl, F, m, n, A, m, FFLAS::FflasAuto) << std::endl;
-	    fq_nmod_mat_print_pretty(Amatcop, ctx);
+	    fq_mat_print_pretty(Amatcop, ctx);
 	    std::cout << std::endl;
 #endif
 #endif
-    } else {
-        Acop = FFLAS::fflas_new(F,m,n);
-        PARFOR1D(i,(size_t)m,parH,
-                 FFLAS::fassign(F, n, A + i*n, 1, Acop + i*n, 1);
-                 // for (size_t j=0; j<(size_t)n; ++j)
-                 //     Acop[i*n+j]= A[i*n+j];
-            );
-    }
+    } else PARFOR1D(i,(size_t)m,parH, FFLAS::fassign(F, n, A + i*n, 1, Acop + i*n, 1););
 
     for (size_t i=0;i<=iter;++i)
     {
-        if (flint) fq_nmod_mat_set(Amat, Amatcop, ctx);
+        if (flint) fq_mat_set(Amat, Amatcop, ctx);
         else {
         PARFOR1D(j,maxP,parH, P[j]=0; );
         PARFOR1D(j,maxQ,parH, Q[j]=0; );
@@ -185,14 +192,14 @@ int main(int argc, char** argv) {
 
         if (i) chrono.start();
         if (flint)
-            R = fq_nmod_mat_rank(Amat, ctx);
+            R = fq_mat_rank(Amat, ctx);
         else
             R = FFPACK::PLUQ(F, diag, m, n, A, n, P, Q);
 //          R = FFPACK::pPLUQ(F, diag, m, n, A, n, P, Q);
 //          R = FFPACK::LUdivine(F, diag, FFLAS::FflasNoTrans, m, n, A, n, P, Q);
         if (i) {chrono.stop(); time[i-1]=chrono.realtime();}
 
-//        std::cout << "rank = " << R << std::endl;
+        std::cout << "rank = " << R << std::endl;
         assert(R == r);
     }
 

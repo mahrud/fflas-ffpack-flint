@@ -55,7 +55,8 @@ clang++ test.o -o test -L`brew --prefix`/lib -L/usr/lib64 -lflint -lgmp -lopenbl
 
 ## TODO
 
-- [ ] There are a number of segmentation faults and double free bugs revealed by the benchmarks.
+- [ ] Let FFLAS ops on `ModularFlint` fallback to `ModularBalanced<double>` when the prime is small enough.
+- [X] There are a number of segmentation faults and double free bugs revealed by the benchmarks.
 - [ ] Extend `ModularFlint` to other FLINT types, in particular extension fields.
 - [ ] A limited number of inlined functions involving Givaro's `Integer` type seem to be involved in the object file. Investigate and remove them.
 - [x] Benchmark linear algebra computations using FLINT's `fmpz` vs. Givaro's `Integer`.
